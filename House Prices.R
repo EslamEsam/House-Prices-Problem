@@ -42,25 +42,12 @@ for (col in categorical_cols) {
 train <- subset(house_prices, !is.na(SalePrice))
 test <- subset(house_prices, is.na(SalePrice))
 
-# Split the data into train and validation sets
-set.seed(123)
-train_index <- createDataPartition(train$SalePrice, p = 0.8, list = FALSE)
-train_data <- train[train_index, ]
-validation_data <- train[-train_index, ]
-
 # Train a random forest model
-model <- randomForest(SalePrice ~ ., data = train_data, ntree = 2000, mtry = 20)
+set.seed(69)
+model <- randomForest(SalePrice ~ ., data = train, ntree = 10000, mtry = 20)
 
-# Make predictions on the validation set
-validation_predictions <- predict(model, newdata = validation_data)
-
-# Calculate MSE and RMSE on the validation set
-mse <- mean((validation_data$SalePrice - validation_predictions)^2)
-rmse <- sqrt(mse)
-
-# Print MSE and RMSE
-print(paste("MSE:", mse))
-print(paste("RMSE:", rmse))
+# Print summary of the model
+print(model)
 
 # Make predictions on the test set
 predictions <- predict(model, newdata = test)
@@ -68,4 +55,3 @@ predictions <- predict(model, newdata = test)
 # Save predictions to CSV file
 submission <- data.frame(Id = test$Id, SalePrice = predictions)
 write.csv(submission, "prediction.csv", row.names = FALSE)
-
