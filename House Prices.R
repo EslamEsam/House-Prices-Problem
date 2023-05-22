@@ -52,35 +52,35 @@ test_ids <- house_prices$Id[is.na(house_prices$SalePrice)]
 
 ##################################################################
 
-# Data visualization
-ggplot(train, aes(x = SalePrice)) +
-  geom_histogram(fill = "skyblue", color = "black") +
-  labs(x = "Sale Price", y = "Frequency", title = "Distribution of Sale Prices")
-
-
-#Scatter Plot: SalePrice vs. GrLivArea
-ggplot(train, aes(x = GrLivArea, y = SalePrice)) +
-  geom_point(color = "skyblue") +
-  labs(x = "GrLivArea", y = "Sale Price", title = "Sale Price vs. GrLivArea")
-#Boxplot: SalePrice by OverallQual
-ggplot(train, aes(x = as.factor(OverallQual), y = SalePrice)) +
-  geom_boxplot(fill = "skyblue", color = "black") +
-  labs(x = "Overall Quality", y = "Sale Price", title = "Sale Price by Overall Quality")
-#Bar Plot: SaleType
-ggplot(train, aes(x = SaleType)) +
-  geom_bar(fill = "skyblue", color = "black") +
-  labs(x = "Sale Type", y = "Count", title = "Distribution of Sale Types")
-#Violin Plot: SalePrice by Neighborhood
-ggplot(train, aes(x = Neighborhood, y = SalePrice)) +
-  geom_violin(fill = "skyblue", color = "black") +
-  labs(x = "Neighborhood", y = "Sale Price", title = "Sale Price by Neighborhood")
-
-
-# Calculate correlation matrix
-cor_matrix <- cor(train[, sapply(train, is.numeric)], use = "complete.obs")
-
-# Visualize correlation matrix
-corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.7)
+# # Data visualization
+# ggplot(train, aes(x = SalePrice)) +
+#   geom_histogram(fill = "skyblue", color = "black") +
+#   labs(x = "Sale Price", y = "Frequency", title = "Distribution of Sale Prices")
+# 
+# 
+# #Scatter Plot: SalePrice vs. GrLivArea
+# ggplot(train, aes(x = GrLivArea, y = SalePrice)) +
+#   geom_point(color = "skyblue") +
+#   labs(x = "GrLivArea", y = "Sale Price", title = "Sale Price vs. GrLivArea")
+# #Boxplot: SalePrice by OverallQual
+# ggplot(train, aes(x = as.factor(OverallQual), y = SalePrice)) +
+#   geom_boxplot(fill = "skyblue", color = "black") +
+#   labs(x = "Overall Quality", y = "Sale Price", title = "Sale Price by Overall Quality")
+# #Bar Plot: SaleType
+# ggplot(train, aes(x = SaleType)) +
+#   geom_bar(fill = "skyblue", color = "black") +
+#   labs(x = "Sale Type", y = "Count", title = "Distribution of Sale Types")
+# #Violin Plot: SalePrice by Neighborhood
+# ggplot(train, aes(x = Neighborhood, y = SalePrice)) +
+#   geom_violin(fill = "skyblue", color = "black") +
+#   labs(x = "Neighborhood", y = "Sale Price", title = "Sale Price by Neighborhood")
+# 
+# 
+# # Calculate correlation matrix
+# cor_matrix <- cor(train[, sapply(train, is.numeric)], use = "complete.obs")
+# 
+# # Visualize correlation matrix
+# corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.7)
 
 ##################################################################         
 # # Find highly correlated columns
@@ -162,3 +162,19 @@ predictions <- predict(model, newdata = as.matrix(test[, -which(names(test) == "
 # Save predictions to CSV file
 submission <- data.frame(Id = test_ids, SalePrice = predictions)
 write.csv(submission, "prediction.csv", row.names = FALSE)
+
+
+##################################################################
+# Create a data frame with predicted values
+prediction_data <- data.frame(Predicted = predictions)
+
+# Plot the histogram of predicted values
+ggplot(prediction_data, aes(x = Predicted)) +
+  geom_histogram(binwidth = 1000, fill = "blue", color = "black") +
+  labs(x = "Predicted SalePrice", y = "Frequency") +
+  ggtitle("Distribution of Predicted SalePrice")
+
+# ggplot(prediction_data, aes(x = Predicted)) +
+#   geom_density(fill = "blue", alpha = 0.5) +
+#   labs(x = "Predicted SalePrice", y = "Density") +
+#   ggtitle("Density Plot of Predicted SalePrice")
