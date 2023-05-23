@@ -9,7 +9,7 @@ library(xgboost)
 library(e1071)
 
 
-setwd("C:/Users/eslam/Downloads/Compressed/8th term/Distributed Computing/project")
+setwd("D:\\Kolleya\\8th Term\\Distributed\\Practical\\House-Prices-Problem")
 
 train <- read.csv('train.csv', stringsAsFactors = F)
 test <- read.csv('test.csv', stringsAsFactors = F)
@@ -20,13 +20,13 @@ house_prices <- bind_rows(train, test)
 
 
 # showing data summary 
-summary(house_prices)
+# summary(house_prices)
 
 
 # Display variables with the most NAs
 na_counts <- colSums(is.na(house_prices))
 na_counts <- na_counts[order(na_counts, decreasing = TRUE)]
-head(na_counts)
+# head(na_counts)
 
 
 # Drop variables with too many missing values
@@ -78,14 +78,17 @@ ggplot(train, aes(x = SalePrice)) +
 ggplot(train, aes(x = GrLivArea, y = SalePrice)) +
   geom_point(color = "skyblue") +
   labs(x = "GrLivArea", y = "Sale Price", title = "Sale Price vs. GrLivArea")
+
 #Boxplot: SalePrice by OverallQual
 ggplot(train, aes(x = as.factor(OverallQual), y = SalePrice)) +
   geom_boxplot(fill = "skyblue", color = "black") +
   labs(x = "Overall Quality", y = "Sale Price", title = "Sale Price by Overall Quality")
+
 #Bar Plot: SaleType
 ggplot(train, aes(x = SaleType)) +
   geom_bar(fill = "skyblue", color = "black") +
   labs(x = "Sale Type", y = "Count", title = "Distribution of Sale Types")
+  
 #Violin Plot: SalePrice by Neighborhood
 ggplot(train, aes(x = Neighborhood, y = SalePrice)) +
   geom_violin(fill = "skyblue", color = "black") +
