@@ -1,21 +1,33 @@
+# Load necessary libraries and data
+
 library(randomForest)
 library(dplyr)
 library(caret)
 library(tidyverse)
 library(corrplot)
 library(xgboost)
-
+library(e1071)
 
 
 setwd("C:/Users/eslam/Downloads/Compressed/8th term/Distributed Computing/project")
 
-# Load necessary libraries and data
 train <- read.csv('train.csv', stringsAsFactors = F)
 test <- read.csv('test.csv', stringsAsFactors = F)
 test$SalePrice <- rep(NA, nrow(test))
 
 # Combine train and test data
 house_prices <- bind_rows(train, test)
+
+
+# showing data summary 
+summary(house_prices)
+
+
+# Display variables with the most NAs
+na_counts <- colSums(is.na(house_prices))
+na_counts <- na_counts[order(na_counts, decreasing = TRUE)]
+head(na_counts)
+
 
 # Drop variables with too many missing values
 house_prices <- house_prices %>% select(-c(Alley, PoolQC, Fence, MiscFeature)) 
@@ -30,17 +42,14 @@ nonnum_cols <- sapply(house_prices[, -which(names(house_prices) == "SalePrice")]
 house_prices[, -which(names(house_prices) == "SalePrice")][, nonnum_cols] <- 
   lapply(house_prices[, -which(names(house_prices) == "SalePrice")][, nonnum_cols], function(x) ifelse(is.na(x), as.character(mode(x)), x))
 
-# Encode categorical variables
-categorical_cols <- c("MSZoning", "Street", "LotShape", "LandContour", "Utilities", "LotConfig", 
-                      "LandSlope", "Neighborhood", "Condition1","BldgType", "HouseStyle", 
-                      "RoofStyle",  "Exterior1st", "MasVnrType", "ExterQual", 
-                      "ExterCond", "Foundation", "BsmtQual", "BsmtCond", "BsmtExposure", "BsmtFinType1", 
-                      "BsmtFinType2", "Heating", "HeatingQC", "CentralAir", "KitchenQual", 
-                      "Functional", "FireplaceQu", "GarageType", "GarageFinish", "GarageQual", "GarageCond", 
-                      "PavedDrive", "SaleType", "SaleCondition")
-for (col in categorical_cols) {
-  house_prices[[col]] <- as.factor(house_prices[[col]])
-}
+
+# Convert character columns to factors
+char_cols <- sapply(house_prices, is.character)
+house_prices[char_cols] <- lapply(house_prices[char_cols], as.factor)
+
+# Convert remaining non-numeric columns to numeric
+non_numeric_cols <- sapply(house_prices, function(x) !is.numeric(x))
+house_prices[non_numeric_cols] <- lapply(house_prices[non_numeric_cols], as.numeric)
 
 # Split the data into train and test sets
 train <- subset(house_prices, !is.na(SalePrice))
@@ -53,10 +62,17 @@ test_ids <- house_prices$Id[is.na(house_prices$SalePrice)]
 ##################################################################
 
 # Data visualization
+
+# Calculate correlation matrix
+cor_matrix <- cor(train[, sapply(train, is.numeric)], use = "complete.obs")
+
+# Visualize correlation matrix
+corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.7)
+
+
 ggplot(train, aes(x = SalePrice)) +
   geom_histogram(fill = "skyblue", color = "black") +
   labs(x = "Sale Price", y = "Frequency", title = "Distribution of Sale Prices")
-
 
 #Scatter Plot: SalePrice vs. GrLivArea
 ggplot(train, aes(x = GrLivArea, y = SalePrice)) +
@@ -76,15 +92,9 @@ ggplot(train, aes(x = Neighborhood, y = SalePrice)) +
   labs(x = "Neighborhood", y = "Sale Price", title = "Sale Price by Neighborhood")
 
 
-# Calculate correlation matrix
-cor_matrix <- cor(train[, sapply(train, is.numeric)], use = "complete.obs")
-
-# Visualize correlation matrix
-corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.7)
-
 ##################################################################         
 # # Find highly correlated columns
-# highly_correlated <- findCorrelation(cor_matrix, cutoff = 0.3, verbose = FALSE)
+# highly_correlated <- findCorrelation(cor_matrix, cutoff = 0.2, verbose = FALSE)
 # highly_correlated_cols <- colnames(cor_matrix)[highly_correlated]
 
 
@@ -113,16 +123,42 @@ corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.7)
 
 ##################################################################
 
+# # Train an SVR model
+# set.seed(69)
+
+# # Convert character columns to factors
+# char_cols <- sapply(train, is.character)
+# train[char_cols] <- lapply(train[char_cols], as.factor)
+
+# # Convert remaining non-numeric columns to numeric
+# non_numeric_cols <- sapply(train, function(x) !is.numeric(x))
+# train[non_numeric_cols] <- lapply(train[non_numeric_cols], as.numeric)
+
+# # Extract the SalePrice column
+# label <- train$SalePrice
+
+# # Train the SVR model
+# model <- svm(
+#   x = as.matrix(train[, -which(names(train) == "SalePrice")]),
+#   y = label,
+#   kernel = "radial",
+#   cost = 20,
+#   gamma = 0.001
+# )
+
+
+# # Make predictions on the test set
+
+# # Extract the SalePrice column
+# label <- test$SalePrice
+
+# # Predict using the trained model
+# predictions <- predict(model, newdata = as.matrix(test[, -which(names(test) == "SalePrice")]))
+
+##################################################################
+
 # Train a model using XGBoost
 set.seed(69)
-
-# Convert character columns to factors
-char_cols <- sapply(train, is.character)
-train[char_cols] <- lapply(train[char_cols], as.factor)
-
-# Convert remaining non-numeric columns to numeric
-non_numeric_cols <- sapply(train, function(x) !is.numeric(x))
-train[non_numeric_cols] <- lapply(train[non_numeric_cols], as.numeric)
 
 # Extract the SalePrice column
 label <- train$SalePrice
@@ -131,8 +167,8 @@ params <- list(
   objective = "reg:squarederror",
   eta = 0.01,
   max_depth = 5,
-  colsample_bytree = 0.7,
-  subsample = 0.7
+  colsample_bytree = 0.5,
+  subsample = 0.5
 )
 
 model <- xgboost(
@@ -142,14 +178,6 @@ model <- xgboost(
   nrounds = 1000
 )
 # Make predictions on the test set
-
-# Convert character columns to factors
-char_cols <- sapply(test, is.character)
-test[char_cols] <- lapply(test[char_cols], as.factor)
-
-# Convert remaining non-numeric columns to numeric
-non_numeric_cols <- sapply(test, function(x) !is.numeric(x))
-test[non_numeric_cols] <- lapply(test[non_numeric_cols], as.numeric)
 
 # Extract the SalePrice column
 label <- test$SalePrice
@@ -161,12 +189,13 @@ predictions <- predict(model, newdata = as.matrix(test[, -which(names(test) == "
 
 # Save predictions to CSV file
 submission <- data.frame(Id = test_ids, SalePrice = predictions)
-write.csv(submission, "prediction.csv", row.names = FALSE)
+write.csv(submission, "XGBoost.csv", row.names = FALSE)
 
 
 ##################################################################
 # Create a data frame with predicted values
 prediction_data <- data.frame(Predicted = predictions)
+
 
 # Plot the histogram of predicted values
 ggplot(prediction_data, aes(x = Predicted)) +
@@ -178,3 +207,4 @@ ggplot(prediction_data, aes(x = Predicted)) +
   geom_density(fill = "blue", alpha = 0.5) +
   labs(x = "Predicted SalePrice", y = "Density") +
   ggtitle("Density Plot of Predicted SalePrice")
+
