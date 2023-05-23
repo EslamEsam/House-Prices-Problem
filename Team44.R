@@ -1,15 +1,15 @@
-#region[libraries]
+#region[Libraries]
 library(randomForest)
 library(dplyr)
 library(caret)
+library(gbm)
 library(tidyverse)
 library(corrplot)
 library(xgboost)
 library(e1071)
-
 #endregion
 
-#region[load_data]
+#region[Load Data]
 setwd("D:\\Kolleya\\8th Term\\Distributed\\Practical\\House-Prices-Problem")
 
 train <- read.csv('train.csv', stringsAsFactors = F)
@@ -20,7 +20,7 @@ test$SalePrice <- rep(NA, nrow(test))
 house_prices <- bind_rows(train, test)
 #endregion
 
-#region[drop_&_impute]
+#region[Drop & Impute]
 
 # Drop variables with too many missing values
 na_cols <- colSums(is.na(house_prices)) / nrow(house_prices)  # Calculate the percentage of NA values in each column
@@ -39,6 +39,7 @@ house_prices[, -which(names(house_prices) == "SalePrice")][, nonnum_cols] <-
 #endregion
 
 #region[Visualization]
+train <- subset(house_prices, !is.na(SalePrice))
 
 #Histogram: SalePrice
 ggplot(train, aes(x = SalePrice)) +
@@ -75,8 +76,7 @@ ggplot(train, aes(x = SaleType)) +
   labs(x = "Sale Type", y = "Count", title = "Distribution of Sale Types")
 #endregion
 
-
-#region[Feature_conversion]
+#region[Feature Conversion]
 
 # Convert character columns to factors
 char_cols <- sapply(house_prices, is.character)
@@ -85,8 +85,9 @@ house_prices[char_cols] <- lapply(house_prices[char_cols], as.factor)
 # Convert remaining non-numeric columns to numeric
 non_numeric_cols <- sapply(house_prices, function(x) !is.numeric(x))
 house_prices[non_numeric_cols] <- lapply(house_prices[non_numeric_cols], as.numeric)
-
 #endregion
+
+#region[Data Split]
 
 # Split the data into train and test sets
 train <- subset(house_prices, !is.na(SalePrice))
@@ -94,131 +95,81 @@ test <- subset(house_prices, is.na(SalePrice))
 
 # Extract the Id column from the original house_prices dataset
 test_ids <- house_prices$Id[is.na(house_prices$SalePrice)]
+#endregion
 
-##################################################################
+#region[Correlation Matrix]
+cor_matrix <- cor(train[, sapply(train, is.numeric)], use = "complete.obs")
+corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.7)
+#endregion
 
-# Data visualization
-
-# Calculate correlation matrix
-# cor_matrix <- cor(train[, sapply(train, is.numeric)], use = "complete.obs")
-
-# Visualize correlation matrix
-# corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.7)
-
-
-##################################################################         
-# # Find highly correlated columns
+#region[Feature Selection]
 # highly_correlated <- findCorrelation(cor_matrix, cutoff = 0.2, verbose = FALSE)
 # highly_correlated_cols <- colnames(cor_matrix)[highly_correlated]
-
-
-# print(highly_correlated_cols)
-
-
-# # Extract the Id column from the original house_prices dataset
-# test_ids <- house_prices$Id[is.na(house_prices$SalePrice)]
-
-
-
-# # Subset the train and test data to include only the highly correlated columns
 # train <- train[,  highly_correlated_cols]
 # test <- test[, highly_correlated_cols]
-##################################################################
+#endregion
 
-# # Train a random forest model
-# set.seed(69)
-# model <- randomForest(SalePrice ~ ., data = train, ntree = 20000, mtry = 20)
+#region[Models Training]
+label <- train$SalePrice # Extract the SalePrice column
+set.seed(45) # Init seed for all models
 
-# # Print summary of the model
-# print(model)
+## Linear Regression Model #####################
+modelLR <- lm(SalePrice ~ ., data = train)
+# print(modelLR)
+predictionsLR <- predict(modelLR, newdata = test)
 
-# # Make predictions on the test set
-# predictions <- predict(model, newdata = test)
+## SVR Model ###################################
+modelSVR <- svm(
+  x = as.matrix(train[, -which(names(train) == "SalePrice")]),
+  y = label,
+  kernel = "radial",
+  cost = 20,
+  gamma = 0.001
+)
+# print(modelSVR)
+predictionsSVR <- predict(modelSVR, newdata = as.matrix(test[, -which(names(test) == "SalePrice")]))
 
-##################################################################
+## XGBOOST Model ###############################
+params <- list(
+  objective = "reg:squarederror",
+  eta = 0.01,
+  max_depth = 5,
+  colsample_bytree = 0.5,
+  subsample = 0.5
+)
 
-# # Train an SVR model
-# set.seed(69)
+modelXG <- xgboost(
+  data = as.matrix(train[, -which(names(train) == "SalePrice")]),
+  label = label,
+  params = params,
+  nrounds = 1000
+)
 
-# # Convert character columns to factors
-# char_cols <- sapply(train, is.character)
-# train[char_cols] <- lapply(train[char_cols], as.factor)
+predictionsXG <- predict(modelXG, newdata = as.matrix(test[, -which(names(test) == "SalePrice")]))
+#endregion
 
-# # Convert remaining non-numeric columns to numeric
-# non_numeric_cols <- sapply(train, function(x) !is.numeric(x))
-# train[non_numeric_cols] <- lapply(train[non_numeric_cols], as.numeric)
+#region[Save to CSV]
+submissionLR <- data.frame(Id = test_ids, SalePrice = predictionsLR)
+write.csv(submissionLR, "predictions_linear_regression.csv", row.names = FALSE)
 
-# # Extract the SalePrice column
-# label <- train$SalePrice
+submissionSVR <- data.frame(Id = test_ids, SalePrice = predictionsSVR)
+write.csv(submissionSVR, "predictions_SVR.csv", row.names = FALSE)
 
-# # Train the SVR model
-# model <- svm(
-#   x = as.matrix(train[, -which(names(train) == "SalePrice")]),
-#   y = label,
-#   kernel = "radial",
-#   cost = 20,
-#   gamma = 0.001
-# )
+submissionXG <- data.frame(Id = test_ids, SalePrice = predictionsXG)
+write.csv(submissionXG, "predictions_XGBoost.csv", row.names = FALSE)
+#endregion
 
+#region[Visualize Predictions]
+prediction_data <- data.frame(Predicted = predictionsSVR)
 
-# # Make predictions on the test set
+# Plot the histogram of predicted values
+ggplot(prediction_data, aes(x = Predicted)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  labs(x = "Predicted SalePrice", y = "Count") +
+  ggtitle("Distribution of Predicted SalePrice")
 
-# # Extract the SalePrice column
-# label <- test$SalePrice
-
-# # Predict using the trained model
-# predictions <- predict(model, newdata = as.matrix(test[, -which(names(test) == "SalePrice")]))
-
-##################################################################
-
-# Train a model using XGBoost
-# set.seed(69)
-
-# # Extract the SalePrice column
-# label <- train$SalePrice
-
-# params <- list(
-#   objective = "reg:squarederror",
-#   eta = 0.01,
-#   max_depth = 5,
-#   colsample_bytree = 0.5,
-#   subsample = 0.5
-# )
-
-# model <- xgboost(
-#   data = as.matrix(train[, -which(names(train) == "SalePrice")]),
-#   label = label,
-#   params = params,
-#   nrounds = 1000
-# )
-# # Make predictions on the test set
-
-# # Extract the SalePrice column
-# label <- test$SalePrice
-
-# # Predict using the trained model
-# predictions <- predict(model, newdata = as.matrix(test[, -which(names(test) == "SalePrice")]))
-
-# ##################################################################
-
-# # Save predictions to CSV file
-# submission <- data.frame(Id = test_ids, SalePrice = predictions)
-# write.csv(submission, "XGBoost.csv", row.names = FALSE)
-
-
-# ##################################################################
-# # Create a data frame with predicted values
-# prediction_data <- data.frame(Predicted = predictions)
-
-
-# # Plot the histogram of predicted values
-# ggplot(prediction_data, aes(x = Predicted)) +
-#   geom_histogram(binwidth = 1000, fill = "blue", color = "black") +
-#   labs(x = "Predicted SalePrice", y = "Frequency") +
-#   ggtitle("Distribution of Predicted SalePrice")
-
-# ggplot(prediction_data, aes(x = Predicted)) +
-#   geom_density(fill = "blue", alpha = 0.5) +
-#   labs(x = "Predicted SalePrice", y = "Density") +
-#   ggtitle("Density Plot of Predicted SalePrice")
-
+ggplot(prediction_data, aes(y = Predicted)) +
+  geom_boxplot() +
+  ylab("Predicted SalePrice") +
+  ggtitle("Box Plot of Predicted SalePrice")
+#endregion
